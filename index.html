@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snake</title>
+    <style>
+        #gameContainer {
+            float: right;
+            width: 70%;
+            text-align: center;
+        }
+
+        #gameBoard {
+            border: 3px solid;
+            width: 550px;
+
+        }
+
+        #scoreText {
+            font-family: "Times New Roman";
+            font-size: 80px;
+        }
+
+        #levelNow {
+            font-family: "Times New Roman";
+            font-size: 30px;
+        }
+
+        #countDown {
+            font-family: "Times New Roman";
+            font-size: 20px;
+        }
+
+        #lv0, #lv1, #lv2, #lv3, #lv4, #lv5, #lv6 {
+            font-family: "Times New Roman";
+            font-size: 22px;
+            width: 100px;
+            height: 50px;
+            border: 4px solid;
+            border-radius: 15px;
+            cursor: pointer;
+            margin-top: 25%;
+            margin-left: 10%;
+            background: lightGray;
+
+        }
+
+        #detailLevel {
+            font-family: "Times New Roman";
+            font-size: 30px;
+            float: right;
+            width: 50%;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: 20%;
+            line-height: 150%;
+        }
+
+        #levelContainer {
+            display: grid;
+            grid-template-columns: 1fr;
+            margin-left: auto;
+            margin-right: auto;
+            float: left;
+            width: 40%;
+        }
+
+        #level {
+            float: left;
+            width: 29%;
+        }
+
+        #popupQuestion {
+            height: 100px;
+            width: 300px;
+            background-color: #f7ccac;
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .detailQuetion {
+            padding: 15px;
+        }
+
+        #submit {
+            width: 100px;
+            height: 30px;
+            border-radius: 15px;
+            cursor: pointer;
+        }
+
+        #question {
+            padding-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game">
+    <div id="gameContainer">
+        <div id="levelNow"></div>
+        <p id="countDown"></p>
+        <canvas id="gameBoard" width="500" height="500"></canvas>
+        <div id="scoreText">0</div>
+    </div>
+    <div id="level">
+        <div id="detailLevel">Hãy chọn level hoặc bắt đầu ở level đầu tiên: Rắn có thể đi xuyên tường và ăn thức ăn để nâng cấp chiều dài.</div>
+        <div id="levelContainer">
+            <button id="lv0">Level 0</button>
+            <button id="lv1">Level 1</button>
+            <button id="lv2">Level 2</button>
+            <button id="lv3">Level 3</button>
+            <button id="lv4">Level 4</button>
+            <button id="lv5">Level 5</button>
+            <button id="lv6">Level 6</button>
+        </div>
+    </div>
+</div>
+<div id="popupQuestion">
+    <div class="detailQuetion"> Trả lời đúng câu hỏi để tăng điểm</div>
+    <div id="question"></div>
+    <input type="text" id="answer" placeholder="Hãy nhập câu trả lời">
+    <button onclick="submitAnswer()" id="submit">Kiểm tra</button>
+</div>
+</body>
+</html>
+
+
+<script>
+    const container = document.querySelector("#game")
+    const board = document.querySelector("#gameBoard")
+    const ctx = board.getContext("2d")
+    const score = document.querySelector("#scoreText")
+    const detail = document.querySelector("#detailLevel")
+    const levelGame = document.querySelector("#levelNow")
+    const countdown = document.querySelector("#countDown")
+    const titleQuestion = document.querySelector("#popupQuestion")
+    const question = document.querySelector("#question")
+
+    // const  reset
+    const gameWidth = board.width  //chiều rộng game
+    const gameHeight = board.height  //chiều cao game
+    const unitSize = 25  //kích thước 1 phần của rắn
+
+    const background = "black"  //background game
+    const snakeColor = "blue"  //màu rắn
+    const snakeBorder = "blue"  //viền rắn
+    const food = "red"  //màu thức ăn
+    let wallColor = "lightGray"  //màu tường
+    let poisonColor = "green"  //màu thuốc độc
+    let botColor = "purple", botBorder = "purple", botHead = "gray"  //bot
+
+    let running = false  //game có đang chạy hay không? false => không, true => có
+    let isPlay = false;  //người chơi đã bắt đầu chơi chưa? bàn phím được ấn mới bắt đầu chạy
+    let checkLv6 //kiểm tra thời gian còn lại của lv6
+    let isDisplay = true  //có được hiển thị hay không nếu running = false mà isDisplay = false nghĩa là chỉ tạm dừng game không hiển thị thua
+
+
+    let xVelocity = unitSize //vị trí x rắn
+    let yVelocity = 0  //vị trí y rắn
+    let foodX, foodY  //vị trí x, y của thức ăn
+    let xPoison, yPoison //vị trí x, y của thuốc độc
+    let xf, yf  //x, y của thức ăn có chứa câu hỏi
+    let xBot = unitSize, yBot = 0;
+
+    let a, b;  //giá trị của a+b ở lv5
+    let answerCheck;  //kết quả người dùng nhập
+
+    let snake = [{x: unitSize * 4, y: 0},//mảng ban đầu của rắn
+        {x: unitSize * 3, y: 0},
+        {x: unitSize * 2, y: 0},
+        {x: unitSize, y: 0},
+        {x: 0, y: 0}]
+
+    //con rắn thứ hai
+    let snakeBot = [{x: unitSize * 4, y: 100},
+        {x: unitSize * 3, y: 100},
+        {x: unitSize * 2, y: 100},
+        {x: unitSize, y: 100},
+        {x: 25, y: 100}]
+
+    //tường chắn
+    //lv1
+    let wallLv1 = [{x: 125, y: 150}, {x: 125, y: 175}, {x: 125, y: 200},
+        {x: 125, y: 225}, {x: 125, y: 250}, {x: 125, y: 275}, {x: 125, y: 300},//thanh dọc
+        {x: 125, y: 150}, {x: 150, y: 150}, {x: 175, y: 150}, {x: 200, y: 150}, {x: 225, y: 150}, //thanh ngang 1
+        {x: 125, y: 250}, {x: 150, y: 250}, {x: 175, y: 250}, {x: 250, y: 250}, {x: 225, y: 250}]  //thanh ngang 2
+
+    //lv5
+    let wallLv5 = [{x: 125, y: 150}, {x: 125, y: 175}, {x: 125, y: 200},
+        {x: 125, y: 150}, {x: 150, y: 150}, {x: 175, y: 150}, {x: 200, y: 150}, {x: 225, y: 150},
+        {x: 125, y: 250}, {x: 150, y: 250}, {x: 175, y: 250}, {x: 250, y: 250}, {x: 225, y: 250},
+        {x: 25, y: 200}, {x: 100, y: 50}, {x: 200, y: 200}, {x: 25, y: 200},
+        {x: 25, y: 200}, {x: 50, y: 200}, {x: 75, y: 200}, {x: 100, y: 200}, {x: 125, y: 200}]
+
+    //lv4
+    let wallLv4 = [{x: 125, y: 150}, {x: 125, y: 175}, {x: 125, y: 200},
+        {x: 125, y: 225}, {x: 125, y: 250}, {x: 125, y: 275}, {x: 125, y: 300},
+        {x: 125, y: 150}, {x: 150, y: 150}, {x: 175, y: 150}, {x: 200, y: 150}, {x: 225, y: 150}, //thanh ngang 1
+        {x: 125, y: 250}, {x: 150, y: 250}, {x: 175, y: 250}, {x: 250, y: 250}, {x: 225, y: 250},  //thanh ngang 2
+        {x: 25, y: 200}, {x: 25, y: 500}, {x: 25, y: 325}, {x: 100, y: 50}, {x: 200, y: 200}, {x: 25, y: 200},
+        {x: 25, y: 200}, {x: 50, y: 200}, {x: 75, y: 200}, {x: 100, y: 200}, {x: 125, y: 200}, {x: 300, y: 300}]
+
+    let scoreGame = 0  //điểm
+    let level = 0;  //level hiện tại
+    let timeCall = 200;  //tốc độ di chuyển của rắn
+    let key   //dùng để gán phím người dùng nhập để kt xem đang đi về bên trái hay phải => vẽ lại rắn ở lv đi xuyên tường
+    let pointNext = 3 //điểm phải đạt được để qua vòng
+    let starTime = 10; //thời gian bắt đầu đếm ngược
+    let time = starTime * 10  //vẫn là thời gian đếm ngược nhưng x10
+
+
+    // chọn level
+    const level0Btn = document.querySelector("#lv0")
+    const level1Btn = document.querySelector("#lv1")
+    const level2Btn = document.querySelector("#lv2")
+    const level3Btn = document.querySelector("#lv3")
+    const level4Btn = document.querySelector("#lv4")
+    const level5Btn = document.querySelector("#lv5")
+    const level6Btn = document.querySelector("#lv6")
+
+    //bắt action button
+    level0Btn.addEventListener("click", runLevel0)
+    level1Btn.addEventListener("click", runLevel1)
+    level2Btn.addEventListener("click", runLevel2)
+    level3Btn.addEventListener("click", runLevel3)
+    level4Btn.addEventListener("click", runLevel4)
+    level5Btn.addEventListener("click", runLevel5)
+    level6Btn.addEventListener("click", runLevel6)
+
+    window.addEventListener("keydown", changeDirection) //action bàn phím để điều hướng rắn
+    startGame(); //function khởi tạo game
+
+
+    // start game
+    //tạo thức ăn trước và xem level hiện tại đang ở đâu để chạy đúng level
+    function startGame() {
+        running = true;
+        //tạo thức ăn có câu hỏi với lv5
+        if (level != 5) { //nếu không phải lv5
+            createFood();
+        } else {
+            createFoodLv5()
+        }
+        //kiểm tra level
+        switch (level) {
+            case level = 0:
+                countdown.style.display = 'none';
+                clearBoard();
+                level0();
+                break;
+            case level = 1:
+                countdown.style.display = 'none';
+                clearBoard();
+                level1();
+                break;
+            case level = 2:
+                countdown.style.display = 'none';
+                clearBoard();
+                level2();
+                break;
+            case level = 3:
+                clearBoard();
+                countdown.style.display = 'none';
+                level3();
+                break;
+            case level = 4:
+                clearBoard();
+                countdown.style.display = 'none';
+                level4();
+                createPoison()
+                break;
+            case level = 5:
+                clearBoard();
+                countdown.style.display = 'none';
+                level5();
+                break;
+            case level = 6:
+                clearBoard();
+                createPoison();
+                // time = starTime * 10
+                // countdown.style.display = 'block'; //cửa sổ đếm ngược
+                // setInterval(setTimeCountdown, 1000); //gọi lại để bắt đầu đếm ngược từ đầu mỗi lần chọn lại lv
+                level6();
+                break;
+        }
+    }
+
+    //xoá bảng để bắt đầu ván mới hoặc level mới
+    function clearBoard() {
+        ctx.fillStyle = background;
+        ctx.fillRect(0, 0, gameWidth, gameHeight)
+    }
+
+    // xoá hết các bức tường đã vẽ
+    function clearWall() {
+        wallColor = background
+    }
+
+    //reset lại điểm hiển thị
+    function resetPoint() {
+        scoreGame = 0
+        score.textContent = "0"
+    }
+
+    //reset lại game khi chọn level
+    function resetGame() {
+        resetPoint();
+        clearBoard();
+        clearWall();
+        xVelocity = unitSize //x ran
+        yVelocity = 0  //y ran
+        scoreGame = 0  //diem
+        snake = [{x: unitSize * 4, y: 0},//mang ran ban dau
+            {x: unitSize * 3, y: 0},
+            {x: unitSize * 2, y: 0},
+            {x: unitSize, y: 0},
+            {x: 0, y: 0}]
+        isPlay = null
+        startGame();
+    }
+
+    //các phương thức tạo
+    //random vị trí của thức ăn tất cả lv trừ lv5
+    function createFood() {
+        function randomFood(min, max) {
+            return Math.round((Math.random() * (max - min) + min) / unitSize) * unitSize
+        }
+
+        foodX = randomFood(0, gameWidth - unitSize)
+        foodY = randomFood(0, gameWidth - unitSize)
+    }
+
+    // random vị trí của thức ăn ở lv5
+    function createFoodLv5() {
+        function randomF(min, max) {
+            return Math.round((Math.random() * (max - min) + min) / unitSize) * unitSize
+        }
+
+        xf = randomF(0, gameWidth - unitSize)
+        yf = randomF(0, gameWidth - unitSize)
+    }
+
+    //random vị trí của thuốc độc
+    function createPoison() {
+        function randomPoison(min, max) {
+            return Math.round((Math.random() * (max - min) + min) / unitSize) * unitSize
+        }
+
+        xPoison = randomPoison(0, gameWidth - unitSize)
+        yPoison = randomPoison(0, gameWidth - unitSize)
+    }
+
+    //các phương thức vẽ
+    //vẽ thức ăn khi không có tường
+    function drawFood() {
+        ctx.fillStyle = food
+        //nếu tạo trùng vị trí của tường thì gọi lại hàm createFood() để random lại vị trí
+        for (let i = 0; i < snake.length; i++) {
+            if (foodX == snake[i].x && foodY == snake[i].y) {
+                createFood()
+            } else {
+                ctx.fillRect(foodX, foodY, unitSize, unitSize)
+            }
+        }
+    }
+
+    //vẽ thức ăn khi có chướng ngại vật
+    //vẽ thức ăn lv1
+    function drawFoodLv1() {
+        ctx.fillStyle = food
+        //nếu tạo trùng vị trí của tường thì gọi lại hàm createFood() để random lại vị trí
+        for (let i = 0; i < wallLv1.length; i++) {
+            if (foodX == wallLv1[i].x && foodY == wallLv1[i].y) {
+                createFood()
+            } else {
+                ctx.fillRect(foodX, foodY, unitSize, unitSize)
+            }
+        }
+        for (let i = 0; i < snake.length; i++) {
+            if (foodX == snake[i].x && foodY == snake[i].y) {
+                createFood()
+            } else {
+                ctx.fillRect(foodX, foodY, unitSize, unitSize)
+            }
+        }
+    }
+
+    //vẽ thức ăn lv5
+    function drawFoodLv5() {
+        ctx.fillStyle = food
+        //nếu tạo trùng vị trí của tường thì gọi lại hàm createFoodLv5() để random lại vị trí
+        for (let i = 0; i < wallLv5.length; i++) {
+            if (xf == wallLv5[i].x && yf == wallLv5[i].y) {
+                createFoodLv5()
+            } else {
+                ctx.fillRect(xf, yf, unitSize, unitSize)
+                drawLineLv5()
+
+            }
+        }
+        //trùng với rắn
+        for (let i = 0; i < snake.length; i++) {
+            if (xf == snake[i].x && yf == snake[i].y) {
+                createFoodLv5()
+            } else {
+                ctx.fillRect(xf, yf, unitSize, unitSize)
+                drawLineLv5()
+            }
+        }
+
+    }
+
+    //vẽ thức ăn lv6
+    function drawFoodLv6() {
+        ctx.fillStyle = food
+        //nếu tạo trùng vị trí của tường thì gọi lại hàm createFood() để random lại vị trí
+        for (let i = 0; i < wallLv4.length; i++) {
+            if (foodX == wallLv4[i].x && foodY == wallLv4[i].y) {
+                createFood()
+            } else {
+                ctx.fillRect(foodX, foodY, unitSize, unitSize)
+            }
+        }
+        //trùng rắn
+        for (let i = 0; i < snake.length; i++) {
+            if (foodX == snake[i].x && foodY == snake[i].y) {
+                createFood()
+            } else {
+                ctx.fillRect(foodX, foodY, unitSize, unitSize)
+            }
+        }
+    }
+
+    //vẽ thuốc độc
+    function drawPoison() {
+        poisonColor = "green"
+        ctx.fillStyle = poisonColor
+        //nếu tạo trùng vị trí của tường thì gọi lại hàm createPoison() để random lại vị trí
+        //trùng tường lv6
+        for (let i = 0; i < wallLv4.length; i++) {
+            if (xPoison == wallLv4[i].x && yPoison == wallLv4[i].y) {
+                createPoison()
+            } else {
+                ctx.fillRect(xPoison, yPoison, unitSize, unitSize)
+            }
+        }
+        //trùng rắn
+        for (let i = 0; i < snake.length; i++) {
+            if (xPoison == snake[i].x && yPoison == snake[i].y) {
+                createPoison()
+            } else {
+                ctx.fillRect(xPoison, yPoison, unitSize, unitSize)
+            }
+        }
+        //trùng thức ăn
+        if (xPoison == foodX || yPoison == foodY) {
+            createPoison()
+        } else {
+            ctx.fillRect(xPoison, yPoison, unitSize, unitSize)
+
+        }
+    }
+
+    // vẽ rắn
+    function drawSnake() {
+        //chạy vòng for mảng snake đã tạo ở trên để vẽ rắn
+        snake.forEach(snakePart => {
+            //đầu nên có màu khác với thân để phân biệt đầu đuôi
+            ctx.fillStyle = 'gray'
+            ctx.fillRect(snake[0].x, snake[0].y, unitSize, unitSize)
+
+            //phân thân rắn
+            ctx.fillStyle = snakeColor;
+            ctx.strokeStyle = snakeBorder;
+            ctx.fillRect(snakePart.x, snakePart.y, unitSize, unitSize)
+            ctx.strokeRect(snakePart.x, snakePart.y, unitSize, unitSize)
+        })
+    }
+
+    //vẽ rắn bot
+    function drawSnakeBot() {
+        //chạy vòng for mảng snake đã tạo ở trên để vẽ rắn
+        snakeBot.forEach(snakePart => {
+            //đầu nên có màu khác với thân để phân biệt đầu đuôi
+            ctx.fillStyle = botHead
+            ctx.fillRect(snakeBot[0].x, snakeBot[0].y, unitSize, unitSize)
+            //phân thân rắn
+            ctx.fillStyle = botColor;
+            ctx.strokeStyle = botBorder;
+            ctx.fillRect(snakePart.x, snakePart.y, unitSize, unitSize)
+            ctx.strokeRect(snakePart.x, snakePart.y, unitSize, unitSize)
+        })
+    }
+
+
+    //vẽ đường chéo trên thức ăn lv5
+    function drawLineLv5() {
+        ctx.strokeStyle = "black"
+        ctx.beginPath();    //xoá vẽ lại giống opengl
+        ctx.moveTo(xf, yf)
+        ctx.lineTo(xf + unitSize, yf + unitSize)
+        ctx.stroke()
+    }
+
+    //vẽ tường
+    function drawWall() {
+        wallColor = "lightGray"
+        ctx.fillStyle = wallColor
+        wallLv1.forEach(wallLv1 => {
+            ctx.fillRect(wallLv1.x, wallLv1.y, unitSize, unitSize)
+
+        })
+    }
+
+    //vẽ tường lv4
+    function drawWallLv4() {
+        ctx.fillStyle = food
+        wallColor = "lightGray"
+        ctx.fillStyle = wallColor
+        wallLv4.forEach(wallLv4 => {
+            ctx.fillRect(wallLv4.x, wallLv4.y, unitSize, unitSize)
+        })
+    }
+
+    //vẽ tường lv5
+    function drawWallLv5() {
+        wallColor = "lightGray"
+        ctx.fillStyle = wallColor
+        wallLv5.forEach(wallLv5 => {
+            ctx.fillRect(wallLv5.x, wallLv5.y, unitSize, unitSize)
+        })
+    }
+
+    //điều hướng rắn
+    function changeDirection(event) {
+        let keyPressed = event.keyCode;
+
+        //kiểm tra xem người chơi đã bắt đầu chơi chưa
+        isPlay = keyPressed != null;
+        const LEFT = 37;
+        const UP = 38;
+        const RIGHT = 39;
+        const DOWN = 40;
+
+        const goingUp = (yVelocity == -unitSize);
+        const goingDown = (yVelocity == unitSize);
+        const goingRight = (xVelocity == unitSize);
+        const goingLeft = (xVelocity == -unitSize);
+
+        key = keyPressed
+
+        //case (đang di chuyển về phía nào && không di chuyển về hướng ngược lại):
+        if (level != 2) {
+            switch (true) {
+                case(keyPressed == LEFT && !goingRight):
+                    xVelocity = -unitSize;
+                    yVelocity = 0;
+                    break;
+                case(keyPressed == UP && !goingDown):
+                    xVelocity = 0;
+                    yVelocity = -unitSize;
+                    break;
+                case(keyPressed == RIGHT && !goingLeft):
+                    xVelocity = unitSize;
+                    yVelocity = 0;
+                    break;
+                case(keyPressed == DOWN && !goingUp):
+                    xVelocity = 0;
+                    yVelocity = unitSize;
+                    break;
+            }
+        } else { //chuyển hướng khi lv4: trái => phải, lên => xuống và ngược lại
+            switch (true) {
+                case(keyPressed == LEFT && !goingLeft):
+                    xVelocity = unitSize;
+                    yVelocity = 0;
+                    break;
+                case(keyPressed == UP && !goingUp):
+                    xVelocity = 0;
+                    yVelocity = unitSize;
+                    break;
+                case(keyPressed == RIGHT && !goingRight):
+                    xVelocity = -unitSize;
+                    yVelocity = 0;
+                    break;
+                case(keyPressed == DOWN && !goingDown):
+                    xVelocity = 0;
+                    yVelocity = -unitSize;
+                    break;
+            }
+        }
+
+    }
+
+
+    //di chuyển rắn
+    function moveSnake() {
+        if (isPlay) {  //khi người chơi bắt đầu di chuyển
+            const head = {
+                x: snake[0].x + xVelocity,
+                y: snake[0].y + yVelocity
+            };
+
+            snake.unshift(head); //tăng 1 part trong rắn
+            if (snake[0].x == foodX && snake[0].y == foodY) {  //khi ăn táo
+                scoreGame++; //tăng điểm
+                score.textContent = scoreGame //set điểm
+                createFood();
+
+                if (level == 4) { //lv5 thì có thêm thuốc độc
+                    poisonColor = background
+                    createPoison()
+                }
+            } else {
+                snake.pop(); //xoá 1 ô nếu chỉ di chuyển
+            }
+        }
+    }
+
+    //tạo số ngẫu nhiên
+    function randomNum(min, max) {
+        return Math.floor(Math.random() * (max - min)) + min;
+    }
+
+    //di chuyển ngẫu nhiên bot
+    function moveSnakeBot() {
+        console.log(snakeBot[0].x + " \t" + snakeBot[0].y + "\t" + xBot + "\t" + yBot)
+        console.log(snakeBot[0].x < 0 || snakeBot[0].x > gameWidth)
+
+        xBot = randomNum(-1, 2) * unitSize;
+        if (snakeBot[0].x < 0 || snakeBot[0].x >= gameWidth) {
+            xBot = randomNum(-1, 2) * unitSize;
+        }
+        if (snakeBot[0].y < 0 || snakeBot[0].y >= gameHeight) {
+            yBot = randomNum(-1, 2) * unitSize;
+        }
+        if (xBot == 0) {
+            yBot = randomNum(-1, 2) * unitSize;
+        } else {
+            yBot = 0
+        }
+        let head = {
+            x: snakeBot[0].x + xBot,
+            y: snakeBot[0].y + yBot
+        };
+        snakeBot.unshift(head); //tăng 1 part trong rắn
+        snakeBot.pop(); //xoá 1 ô nếu chỉ di chuyển
+    }
+
+    //hiển thị câu hỏi
+    function showQuestion() {
+        a = Math.round((Math.random() * (1000 - 100) + 100) / unitSize) * unitSize //random a
+        b = Math.round((Math.random() * (1000 - 100) + 100) / unitSize) * unitSize  //random b
+        question.textContent = a + " + " + b + " = ?"  //ghi câu hỏi lên cửa sổ nhỏ
+
+        if (snake[0].x == xf && snake[0].y == yf) { //khi rắn chạm vào thức ăn có chứa câu hỏi
+            titleQuestion.style.display = "block"  //hiển thị màn hình câu hỏi
+            container.style.opacity = "0.5"
+            running = false  //ngừng chạy rắn
+            isDisplay = false  //không hiển thị thua vì khi running = false sẽ hiển thị thua
+        }
+    }
+
+    //kiểm tra đáp án
+    function submitAnswer() {
+        answerCheck = document.getElementById("answer").value;  //gắn giá trị người chơi nhập để kiểm tra đáp án
+        container.style.opacity = "1"  //chỉnh lại độ sáng màn hình game khi tắt cửa sổ
+        titleQuestion.style.display = "none"  //tắt cửa sổ câu hỏi
+
+        if (answerCheck == (a + b)) {  //kiểm tra kết quả có đúng không
+            //tăng kích thước rắn lên 1
+            const head = {
+                x: snake[0].x + xVelocity,
+                y: snake[0].y + yVelocity
+            };
+
+            snake.unshift(head);
+            scoreGame++; //tăng điểm lên 1
+            score.textContent = scoreGame
+            createFood(); //tạo thức ăn
+        }
+        running = true  // trả lời đúng hay sai đều được chơi tiếp.
+        isPlay = false  //phải dừng lại tránh trường hợp rắn di chuyển khi người chơi chưa sẵn sàng/ chưa kịp nhìn
+        level5()  //gọi đệ quy lại hàm để rắn tiếp tục di chuyển sau khi người chơi nhấn phím
+    }
+
+    // Các phương thức kiểm tra thắng hoặc thua
+    //khi ăn phải thuốc độc? => thua
+    function eatPoison() {
+        if (snake[0].x == xPoison && snake[0].y == yPoison) {
+            running = false
+        }
+    }
+
+    // Khi rắn chạm tường ở level xuyên tường => vẽ lại rắn trái phải cộng trừ chiều rộng, trên dưới cộng trừ chiều cao
+    function snakeHitWall() {
+        //  LEFT: 37; UP: 38; RIGHT: 39;DOWN: 40;
+        if (snake[0].x < 0 || snake[0].x >= gameWidth || snake[0].y < 0 || snake[0].y >= gameHeight) {
+            switch (true) {
+                case(key == 37):
+                    const head1 = {
+                        x: snake[0].x + gameWidth,
+                        y: snake[0].y
+                    };
+                    snake.unshift(head1);
+                    snake.pop();
+                    break;
+                case(key == 39):
+                    const head2 = {
+                        x: snake[0].x - gameWidth,
+                        y: snake[0].y
+                    };
+                    snake.unshift(head2);
+                    snake.pop();
+                    break;
+                case(key == 38):
+                    const head3 = {
+                        x: snake[0].x,
+                        y: snake[0].y + gameHeight
+                    };
+                    snake.unshift(head3);
+                    snake.pop();
+                    break;
+                case(key == 40):
+                    const head4 = {
+                        x: snake[0].x,
+                        y: snake[0].y - gameHeight
+                    };
+                    snake.unshift(head4);
+                    snake.pop();
+                    break;
+            }
+        }
+    }
+
+    //Kiểm tra sau khi chạm vào tường ở level không đi xuyên tường => thua
+    function checkOverGameHitWall() {
+        switch (true) {
+            case (snake[0].x < 0):  //chạm vào cạnh bên trái
+                running = false; //ngừng chơi
+                isDisplay = true //hiển thị thua cuộc
+                break;
+            case (snake[0].x >= gameWidth):  //chạm vào cạnh bên phải
+                running = false;
+                isDisplay = true
+                break;
+            case (snake[0].y < 0): //chạm vào đỉnh
+                running = false;
+                isDisplay = true
+                break;
+            case (snake[0].y >= gameHeight): //chạm vào đáy
+                running = false;
+                isDisplay = true
+                break;
+        }
+    }
+
+    //Kiểm tra rắn chạm đầu
+    function snakeHitHead() {
+        for (let i = 1; i < snake.length; i++) {
+            if (snake[i].x == snake[0].x && snake[i].y == snake[0].y) {//đầu chạm đuôi
+                running = false;
+                isDisplay = true
+            }
+        }
+    }
+
+    // check level 0, đầu chạm đuôi => thua
+    function checkGameOverLv0() {
+        snakeHitHead();
+    }
+
+    // check level 1, đầu chạm đuôi, chạm chướng ngại vật => thua
+    function checkGameOverLv1() {
+        snakeHitHead();
+        for (let i = 0; i < wallLv1.length; i++) {
+            if (snake[0].x == wallLv1[i].x && snake[0].y == wallLv1[i].y) {// rắn chạm chướng ngại vật
+                running = false;
+                isDisplay = true
+            }
+        }
+    }
+
+    // check level 2, đầu chạm đuôi, chạm tường => thua
+    function checkOverGameLv2() {
+        checkOverGameHitWall()
+        snakeHitHead();
+    }
+
+    // check level 3, đầu chạm đuôi, chạm tường, chạm chướng ngại vật => thua
+    function checkOverGameLv3() {
+        checkOverGameHitWall()
+        snakeHitHead()
+        for (let i = 0; i < wallLv1.length; i++) {
+            if (snake[0].x == wallLv1[i].x && snake[0].y == wallLv1[i].y) {
+                running = false;
+                isDisplay = true
+            }
+        }
+
+    }
+
+    //check level4, đầu chạm đuôi, chạm tường, thuốc độc, chướng ngại vật => thua
+    function checkOverGameLv4() {
+        checkOverGameHitWall()
+        snakeHitHead()
+        eatPoison()
+        for (let i = 0; i < wallLv1.length; i++) {
+            if (snake[0].x == wallLv1[i].x && snake[0].y == wallLv1[i].y) {
+                running = false;
+                isDisplay = true
+            }
+        }
+
+    }
+
+    //check level 5, đầu chạm đuôi, chạm tường, chạm chướng ngại vật => thua
+    function checkOverGameLv5() {
+        checkOverGameHitWall()
+        for (let i = 0; i < wallLv5.length; i++) {
+            if (snake[0].x == wallLv5[i].x && snake[0].y == wallLv5[i].y) {
+                running = false;
+                isDisplay = true
+            }
+        }
+    }
+
+    // check level 6, đầu chạm đuôi, chạm tường, chạm chướng ngại vật, hết thời gian mà không đủ điểm => thua
+    function checkOverGameLv6() {
+        checkOverGameHitWall()
+        snakeHitHead()
+        for (let i = 1; i < snakeBot.length; i++) {
+            if (snakeBot[i].x == snake[0].x && snakeBot[i].y == snake[0].y) {//đầu chạm đuôi
+                running = false;
+                isDisplay = true
+            }
+        }
+
+    }
+
+    // Các phương thức hiển thị
+    // Hiện thị khi thua
+    function displayGameOver() {
+        ctx.font = "50px MV Boli";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        if (isDisplay) {  //có được phép hiển thị hay không
+            ctx.fillText("Thất bại!", gameWidth / 2, gameHeight / 2);
+        }
+        running = false
+    }
+
+    // Hiển thị thắng và tải lại game, chỉ dùng ở level 6
+    function displayWinGame() {
+        window.alert("Chúc mừng bạn đã chiến thắng.")
+        location.reload();
+    }
+
+    //tạo thời gian đếm ngược ở level 6
+    function setTimeCountdown() {
+        const count = time;
+        checkLv6 = count
+        if (count != -1) {
+            countdown.innerHTML = `Thời gian còn lại: ${count}`;
+            time--;
+        }
+    }
+
+    //     level0: di xuyen tuong va an qua.
+    function level0() {//xong
+        levelGame.textContent = "Level: " + level
+        if (running) {
+            if (level == 0 && scoreGame != pointNext) {
+                setTimeout(() => {
+                    clearWall()
+                    clearBoard();
+                    drawFood();
+                    moveSnake();
+                    drawSnake();
+                    checkGameOverLv0();
+                    snakeHitWall()
+                    level0()
+                }, timeCall)
+            }
+            if (scoreGame == pointNext) {
+                level = 3;
+                runLevel1()
+                window.alert("Qua vòng")
+                clearBoard();
+                resetPoint()
+                running = true
+            }
+        } else
+            displayGameOver();
+    }
+
+    //     level 1: di xuyen tuong co chuong ngai vat(tuong chan).
+    function level1() {  //xong
+        levelGame.textContent = "Level: " + level
+        if (running) {
+            if (level == 1 && scoreGame != pointNext) {
+                setTimeout(() => {
+                    clearWall()
+                    clearBoard();
+                    drawFoodLv1();
+                    moveSnake();
+                    drawSnake();
+                    checkGameOverLv1();
+                    drawWall();
+                    snakeHitWall();
+                    countdown.innerHTML = ``
+                    level1();
+                }, timeCall)
+            }
+            if (scoreGame == pointNext) {
+                level = 2;
+                window.alert("Qua vòng")
+                runLevel2()
+                clearBoard()
+                resetPoint()
+                running = true
+            }
+        } else
+            displayGameOver();
+    }
+
+
+    //     level 2: khong xuyen va an qua.
+    function level2() { //xong
+        levelGame.textContent = "Level: " + level
+        if (running) {
+            if (level == 2 && scoreGame != pointNext) {
+                setTimeout(() => {
+                    clearWall()
+                    clearBoard();
+                    drawFood();
+                    moveSnake();
+                    drawSnake();
+                    checkOverGameLv2();
+                    level2()
+                }, timeCall)
+            }
+            if (scoreGame == pointNext) {
+                level = 3;
+                window.alert("Qua vòng")
+                runLevel3()
+                resetPoint()
+                clearBoard();
+                running = true
+            }
+        } else
+            displayGameOver();
+    }
+
+
+    //     level 3: khong xuyen va co chuong ngai vat.
+    function level3() {//xong
+        levelGame.textContent = "Level: " + level
+        if (running) {
+            if (level == 3 && scoreGame != pointNext) {
+                setTimeout(() => {
+                    clearWall()
+                    clearBoard();
+                    drawFoodLv1();
+                    moveSnake();
+                    drawSnake();
+                    checkOverGameLv3();
+                    drawWall()
+                    level3()
+                }, timeCall)
+            } else if (scoreGame == pointNext) {
+                level = 0;
+                window.alert("Qua vòng")
+                runLevel4()
+                resetPoint()
+                clearBoard();
+                running = true
+            }
+        } else
+            displayGameOver();
+
+    }
+
+    //     level 4: khong xuyen, co chuong ngai vat, co thuoc doc.
+    function level4() {  //xong
+        levelGame.textContent = "Level: " + level
+        if (running) {
+            if (level == 4 && scoreGame != pointNext) {
+                setTimeout(() => {
+                    clearWall()
+                    clearBoard();
+                    drawFoodLv6();
+                    moveSnake();
+                    drawSnake();
+                    checkOverGameLv4();
+                    drawWallLv4()
+                    drawPoison()
+                    level4()
+                }, timeCall)
+            } else if (scoreGame == pointNext) {
+                level = 5;
+                window.alert("Qua vòng")
+                runLevel5()
+                resetPoint()
+                clearBoard();
+                running = true
+            }
+        } else
+            displayGameOver();
+
+    }
+
+    // level 5: khong xuyen tuong, random tuong chan moi 3 diem, random cach dau ran 2 o
+    function level5() {
+        levelGame.textContent = "Level: " + level
+        if (running) {
+            if (level == 5 && scoreGame != pointNext) {
+                setTimeout(() => {
+                    clearWall()
+                    clearBoard();
+                    drawFoodLv5();
+                    moveSnake();
+                    drawSnake();
+                    checkOverGameLv5();
+                    showQuestion()
+                    drawWallLv5()
+                    level5()
+                }, timeCall)
+            }
+            if (scoreGame == pointNext) {
+                level = 6;
+                window.alert("Qua vòng")
+                runLevel6()
+                resetPoint()
+                clearBoard();
+                running = true
+            }
+        } else
+            displayGameOver();
+    }
+
+    //     level 6: khong xuyen, co chuong ngai vat, co thuoc doc, co do tang toc chay, co thoi gian.
+    function level6() { //xong
+        levelGame.textContent = "Level: " + level
+        drawSnakeBot()
+        moveSnakeBot()
+        if (running) {
+
+            if (level == 6 && scoreGame != pointNext) {
+                setTimeout(() => {
+                    clearWall()
+                    clearBoard();
+                    drawFoodLv6();
+                    moveSnake();
+                    drawSnake();
+                    checkOverGameLv6();
+                    level6()
+                }, timeCall)
+            } else if (scoreGame == pointNext) {
+                displayWinGame()
+                resetPoint()
+                clearBoard();
+                running = true
+            }
+        } else
+            displayGameOver();
+    }
+
+    //function khi nhan vao button de chon level
+    function runLevel0() {
+        level = 0
+        detail.textContent = "Level 0: Rắn có thể đi xuyên tường và ăn thức ăn để nâng cấp chiều dài."
+        level0Btn.style.backgroundColor = 'red'
+        level1Btn.style.backgroundColor = 'lightGray'
+        level2Btn.style.backgroundColor = 'lightGray'
+        level3Btn.style.backgroundColor = 'lightGray'
+        level4Btn.style.backgroundColor = 'lightGray'
+        level5Btn.style.backgroundColor = 'lightGray'
+        level6Btn.style.backgroundColor = 'lightGray'
+        titleQuestion.style.display = "none"
+        resetGame();
+    }
+
+    function runLevel1() {
+        level = 1
+        detail.textContent = "Level 1: Rắn có thể đi xuyên tường, " +
+            "có xuất hiện tường chắn, rắn không được đi vào."
+        level0Btn.style.backgroundColor = 'lightGray'
+        level1Btn.style.backgroundColor = 'red'
+        level2Btn.style.backgroundColor = 'lightGray'
+        level3Btn.style.backgroundColor = 'lightGray'
+        level4Btn.style.backgroundColor = 'lightGray'
+        level5Btn.style.backgroundColor = 'lightGray'
+        level6Btn.style.backgroundColor = 'lightGray'
+        titleQuestion.style.display = "none"
+        resetGame()
+    }
+
+    function runLevel2() {
+        level = 2
+        detail.textContent = "Level 2: Rắn không thể đi xuyên tường, bạn sẽ phải di chuyển ngược " +
+            "lại ví dụ: muốn đi lên phải nhấn nút đi xuống."
+        level0Btn.style.backgroundColor = 'lightGray'
+        level1Btn.style.backgroundColor = 'lightGray'
+        level2Btn.style.backgroundColor = 'red'
+        level3Btn.style.backgroundColor = 'lightGray'
+        level4Btn.style.backgroundColor = 'lightGray'
+        level5Btn.style.backgroundColor = 'lightGray'
+        level6Btn.style.backgroundColor = 'lightGray'
+        titleQuestion.style.display = "none"
+        resetGame()
+    }
+
+    function runLevel3() {
+        level = 3
+        detail.textContent = "Level 3: Rắn không thể đi xuyên tường, " +
+            "có xuất hiện tường chắn, rắn không được đi vào."
+        level0Btn.style.backgroundColor = 'lightGray'
+        level1Btn.style.backgroundColor = 'lightGray'
+        level2Btn.style.backgroundColor = 'lightGray'
+        level3Btn.style.backgroundColor = 'red'
+        level4Btn.style.backgroundColor = 'lightGray'
+        level5Btn.style.backgroundColor = 'lightGray'
+        level6Btn.style.backgroundColor = 'lightGray'
+        titleQuestion.style.display = "none"
+        resetGame()
+
+    }
+
+    function runLevel4() {
+        level = 4
+        detail.textContent = "Level 4: Rắn không thể đi xuyên tường " +
+            "có thuốc độc(màu xanh lá), sẽ tạo ngẫu nhiên mỗi khi ăn được thức ăn nếu ăn phải trò chơi sẽ kết thúc."
+        level0Btn.style.backgroundColor = 'lightGray'
+        level1Btn.style.backgroundColor = 'lightGray'
+        level2Btn.style.backgroundColor = 'lightGray'
+        level3Btn.style.backgroundColor = 'lightGray'
+        level4Btn.style.backgroundColor = 'red'
+        level5Btn.style.backgroundColor = 'lightGray'
+        level6Btn.style.backgroundColor = 'lightGray'
+        titleQuestion.style.display = "none"
+        resetGame()
+
+    }
+
+    function runLevel5() {
+        level = 5
+        detail.textContent = "Level 5: Rắn không thể đi xuyên tường, " +
+            "mỗi lần ăn quả sẽ hiển thị bảng câu hỏi, người dùng nhập đúng sẽ cộng 1 ngược lại tiếp tục. "
+        level0Btn.style.backgroundColor = 'lightGray'
+        level1Btn.style.backgroundColor = 'lightGray'
+        level2Btn.style.backgroundColor = 'lightGray'
+        level3Btn.style.backgroundColor = 'lightGray'
+        level4Btn.style.backgroundColor = 'lightGray'
+        level5Btn.style.backgroundColor = 'red'
+        level6Btn.style.backgroundColor = 'lightGray'
+        titleQuestion.style.display = "none"
+        resetGame()
+    }
+
+    function runLevel6() {
+        level = 6
+        detail.textContent = "Level 6: Rắn không thể đi xuyên tường, " +
+            "ở level này xuất hiện thêm một con rắn khác, nếu bạn chạm phải nó trò chơi sẽ kết thúc."
+        level0Btn.style.backgroundColor = 'lightGray'
+        level1Btn.style.backgroundColor = 'lightGray'
+        level2Btn.style.backgroundColor = 'lightGray'
+        level3Btn.style.backgroundColor = 'lightGray'
+        level4Btn.style.backgroundColor = 'lightGray'
+        level5Btn.style.backgroundColor = 'lightGray'
+        level6Btn.style.backgroundColor = 'red'
+        titleQuestion.style.display = "none"
+        resetGame()
+    }
+
+
+    // đảo chiều khi ăn quả,
+</script>
